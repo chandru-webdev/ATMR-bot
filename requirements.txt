@@ -1,0 +1,13 @@
+MetaTrader5==5.0.6231
+pandas==2.2.2
+pandas_ta==0.3.14b0
+requests==2.32.3
+python-dotenv==1.0.1
+PyYAML==6.0.2
+
+# dev / test
+pytest==8.3.2
+pytest-cov==5.0.0
+ruff==0.6.3
+black==24.8.0
+mypy==1.11.2

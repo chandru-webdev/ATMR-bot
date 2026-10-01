@@ -1,0 +1,79 @@
+# ATMR-Bot configuration
+# Strategy/risk values live here, per CODE_STYLE.md section 9.
+# Hard safety caps in code (exceptions.py / risk.py) cannot be loosened by this file.
+
+mode:
+  trading_mode: demo          # demo | live  (overridden by TRADING_MODE in .env if set)
+  primary_timeframe: H1       # D4 locked
+  poll_seconds: 30
+  command_poll_seconds: 5
+
+symbols:
+  # D8: map your broker's real symbol name here once the demo account is chosen.
+  # EURUSD and AUDUSD stay commented until they are enabled again.
+  # - canonical: EURUSD
+  #   broker_symbol: EURUSD
+  #   max_spread_points: 20
+  - canonical: XAUUSD
+    broker_symbol: XAUUSD
+    max_spread_points: 50
+  # - canonical: AUDUSD
+  #   broker_symbol: AUDUSD
+  #   max_spread_points: 20
+
+indicators:
+  ema_period: 200
+  rsi_period: 14
+  bb_period: 20
+  bb_stddev: 2
+  atr_period: 14
+
+strategy:
+  rsi_oversold: 35       # D2 locked
+  rsi_overbought: 70     # D2 locked
+  touch_lookback: 1
+
+exits:
+  tp_rsi_low: 50
+  tp_rsi_high: 55
+  time_stop_candles: 15
+  # D1(a) locked: 1.5R triggers a 50% partial close only (Stage 2),
+  # never a full close. See docs/DECISIONS.md.
+
+risk:
+  risk_pct_demo: 0.5
+  risk_pct_live: 1.0
+  risk_pct_live_initial: 0.25   # first live phase, per go-live criteria
+  sl_atr_multiplier: 1.5
+  min_reward_risk: 1.5
+  trailing:
+    breakeven_r: 1.0
+    partial_close_r: 1.5
+    partial_close_pct: 50
+    trail_atr_multiplier: 2.0
+  limits:
+    max_concurrent_trades: 2
+    daily_loss_pct: 2.0
+    weekly_loss_pct: 5.0        # D6 locked: closes all + locks until next week
+  correlation_groups:           # D5 locked
+    - [EURUSD, AUDUSD]
+
+sessions:
+  # Empty = no session filter (24/5). Add windows (UTC) to restrict trading hours.
+  enabled: false
+  windows: []
+
+kill_switch:
+  scope: account       # account | bot   (bot = only this bot's magic-number trades)
+  confirm_timeout_s: 60
+  command_ttl_s: 120
+
+commands:
+  ttl_s: 600            # 10 minutes, except kill_switch.command_ttl_s above
+
+notifications:
+  timezone: Asia/Kolkata
+  heartbeat_minutes: 5
+  daily_summary_hour_local: 23
+
+magic_number: 20260928
