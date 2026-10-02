@@ -4,7 +4,7 @@ Last updated: 2026-10-02 by Cursor
 
 ## Status
 
-Building `engine/` — pure logic layer. Next file: `engine/risk.py`.
+`engine/` pure logic is complete (62 tests). Next: `utils/logging_setup.py` and `utils/redact.py`.
 
 ## Done
 
@@ -14,21 +14,19 @@ Building `engine/` — pure logic layer. Next file: `engine/risk.py`.
 - [x] `src/atmr/check_connection.py` — MT5 demo connection verified on MetaQuotes-Demo
 - [x] `src/atmr/exceptions.py` — `ConfigError`, `LiveModeGuardError`, trading errors
 - [x] `src/atmr/config.py` — loads `.env` + YAML, hard caps, live-mode guard (`tests/test_config.py`: **13 passed**)
-- [x] `src/atmr/engine/models.py` — frozen `Signal`, `TradeRequest`, `Position`, `RiskDecision`, `ExitDecision` (`tests/test_models.py`: **8 passed**)
+- [x] `src/atmr/engine/models.py` — frozen `Signal`, `TradeRequest`, `Position`, `RiskDecision`, `ExitDecision`, `AccountState`, `LimitDecision` (`tests/test_models.py`: **8 passed**)
 - [x] `src/atmr/engine/indicators.py` — MT5-style EMA / Wilder RSI / BB / ATR (`tests/engine/test_indicators.py`: **10 passed**)
 - [x] `src/atmr/engine/strategy.py` — closed-candle entries + D1 exit precedence (`tests/engine/test_strategy.py`: **16 passed**)
+- [x] `src/atmr/engine/risk.py` — sizing, daily/weekly circuit breaker, veto, D1 trailing (`tests/engine/test_risk.py`: **15 passed**)
 
-Suite total as of this update: **47 passed**.
+Suite total as of this update: **62 passed**.
 
 ## In Progress
 
-None. `engine/risk.py` has not been started.
+None.
 
 ## Not Started
 
-Build order from `docs/ARCHITECTURE.md` / `docs/AGENTS.md`:
-
-- [ ] `src/atmr/engine/risk.py` — sizing, daily/weekly locks, correlation, max trades, veto (`RiskManager`)
 - [ ] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py` — UTC logs, secret redaction
 - [ ] `src/atmr/connectors/state.py` — SQLite (`StateStore`)
 - [ ] `src/atmr/connectors/data.py` — OHLCV ingest, drop forming candle (`DataIngestor`)
@@ -42,6 +40,10 @@ Build order from `docs/ARCHITECTURE.md` / `docs/AGENTS.md`:
 - [ ] Gate 2 backtest data in `data/` (git-ignored)
 - [ ] Gate 3 integration tests (`@pytest.mark.integration`, demo only)
 - [ ] Gate 4 paper trading (4+ weeks, 50+ trades)
+
+## Needs a human decision (do not guess)
+
+**Trailing is implemented in two places** (accepted for now; wire in `main.py` later). `StrategyEngine.evaluate_exit` uses candle high/low plus SL / time stop / RSI / mid-BB. `RiskManager.evaluate_trailing` uses a single `current_price`. Do not call both independently in the main loop.
 
 ## Decisions Already Locked
 

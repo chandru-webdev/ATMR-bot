@@ -149,3 +149,68 @@ class ExitDecision:
     reason: str
     new_sl: float | None = None
     close_fraction: float = 1.0
+
+
+LOCK_DAILY = "DAILY"
+LOCK_WEEKLY = "WEEKLY"
+LOCK_KILLED = "KILLED"
+
+
+@dataclass(frozen=True)
+class LimitDecision:
+    """
+    Result of a daily or weekly drawdown check.
+
+    Args:
+        breached: True when the loss limit is hit or exceeded.
+        close_all: True when open trades must be closed (D6: both daily and weekly).
+        stop_trading: True when new entries are locked.
+        lock_type: ``DAILY``, ``WEEKLY``, or None.
+    """
+
+    breached: bool
+    close_all: bool
+    stop_trading: bool
+    lock_type: str | None = None
+
+    def __bool__(self) -> bool:
+        """Return True when the limit is breached."""
+        return self.breached
+
+
+@dataclass(frozen=True)
+class AccountState:
+    """
+    Snapshot of account and market facts for a risk decision.
+
+    Time and prices are passed in; this type never reads a clock or MT5.
+
+    Args:
+        balance: Account balance used for sizing.
+        equity: Current equity for drawdown checks.
+        open_positions: Positions already open (bot-managed).
+        is_paused: True when new entries are paused.
+        lock_type: Active lock (DAILY / WEEKLY / KILLED) or None.
+        spread_points: Current spread in points for the signal symbol.
+        price: Intended entry price (passed in).
+        atr: ATR used to place the initial SL.
+        tick_value: Broker ``trade_tick_value``.
+        tick_size: Broker ``trade_tick_size``.
+        volume_step: Broker volume step.
+        volume_min: Broker minimum volume.
+        volume_max: Broker maximum volume.
+    """
+
+    balance: float
+    equity: float
+    open_positions: tuple[Position, ...] = ()
+    is_paused: bool = False
+    lock_type: str | None = None
+    spread_points: float = 0.0
+    price: float = 0.0
+    atr: float = 0.0
+    tick_value: float = 1.0
+    tick_size: float = 1.0
+    volume_step: float = 0.01
+    volume_min: float = 0.01
+    volume_max: float = 100.0
