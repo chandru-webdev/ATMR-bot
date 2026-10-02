@@ -83,6 +83,13 @@ Command Agent <- (bot polls) n8n queue <- Telegram
 ---
 # Part B: Rules for AI Coding Assistants
 
+Before starting any work, read docs/PROGRESS.md to see what is already
+built and tested. After finishing any task, update docs/PROGRESS.md:
+move the item from 'In Progress' or 'Not Started' to 'Done' with its
+test count, update 'Status', and note today's date and your tool name
+in 'Last updated'. Never skip this update — it is how other AI tools
+and the human pick up where you left off.
+
 ## Project
 ATMR-Bot is an automated MT5 trading bot (EUR/USD, XAUUSD, AUD/USD) using EMA(200), RSI(14), Bollinger Bands(20,2) and ATR(14). It runs on Windows next to the MT5 terminal, sends events to n8n, and polls n8n for commands from Telegram. **It trades real money when in live mode.**
 
@@ -140,6 +147,7 @@ python -m atmr.backtest --config config/backtest.yaml
 
 ---
 ## Changelog
+- **v2.0.2:** Part B now requires reading and updating `docs/PROGRESS.md` on every task.
 - **v2.0.1:** File paths updated to the `engine/` `connectors/` `utils/` layout.
 - **v2.0.0:** Combined your agent definitions with rules for AI coding tools. Kept: five agents and nicknames, Risk veto, signal and trade outputs. Changed: Ingestor is candle-based, not tick-based; Strategy also emits exit signals; Risk owns limits, trailing and locks; Execution owns the kill sequence and SL/live guards; Orchestrator uses the command queue instead of a Python API. Added: Command Agent, Notifier Agent, agent rules, Part B.
 - **v1.0.0:** Five agent definitions.

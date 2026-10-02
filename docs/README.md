@@ -106,6 +106,7 @@ python -m atmr.backtest --config config/backtest.yaml
 | [CODE_STYLE.md](CODE_STYLE.md) | Conventions, tooling, folder rules |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Telegram message formats and emoji language |
 | [AGENTS.md](AGENTS.md) | The system's agents and rules for AI coding tools |
+| [PROGRESS.md](PROGRESS.md) | Build status for AI tools — read and update on every task |
 | [DECISIONS.md](DECISIONS.md) | Locked answers to D1-D8, and the canonical D1 exit-rule precedence |
 
 ## Roadmap
