@@ -4,7 +4,7 @@ Automated Trend-Following Mean Reversion bot for MetaTrader 5. It trades EUR/USD
 
 > **Warning:** Trading is risky and you can lose money. This project is for learning and personal use, not financial advice. Run on a **demo account** until every gate in [TESTING.md](TESTING.md) has passed.
 
-**Version:** 2.0.0 | **Status:** Planning and documentation complete; code not started yet.
+**Version:** 2.0.0 | **Status:** Core engine logic and utils complete (79 unit tests passed); connectors next.
 
 ## What It Does
 - **Long:** price above EMA(200), RSI oversold, price at or below the lower Bollinger Band, then a bullish candle close.

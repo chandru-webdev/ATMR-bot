@@ -1,10 +1,10 @@
 # ATMR-Bot — Progress
 
-Last updated: 2026-10-02 by Cursor
+Last updated: 2026-10-06 by Antigravity
 
 ## Status
 
-`engine/` pure logic is complete (62 tests). Next: `utils/logging_setup.py` and `utils/redact.py`.
+`engine/` pure logic and `utils/` logging & redaction are complete (79 tests). Next: `src/atmr/connectors/state.py` (`StateStore`).
 
 ## Done
 
@@ -18,8 +18,9 @@ Last updated: 2026-10-02 by Cursor
 - [x] `src/atmr/engine/indicators.py` — MT5-style EMA / Wilder RSI / BB / ATR (`tests/engine/test_indicators.py`: **10 passed**)
 - [x] `src/atmr/engine/strategy.py` — closed-candle entries + D1 exit precedence (`tests/engine/test_strategy.py`: **16 passed**)
 - [x] `src/atmr/engine/risk.py` — sizing, daily/weekly circuit breaker, veto, D1 trailing (`tests/engine/test_risk.py`: **15 passed**)
+- [x] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py` — UTC logs, secret redaction (`tests/utils/`: **17 passed**)
 
-Suite total as of this update: **62 passed**.
+Suite total as of this update: **79 passed**.
 
 ## In Progress
 
@@ -27,7 +28,6 @@ None.
 
 ## Not Started
 
-- [ ] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py` — UTC logs, secret redaction
 - [ ] `src/atmr/connectors/state.py` — SQLite (`StateStore`)
 - [ ] `src/atmr/connectors/data.py` — OHLCV ingest, drop forming candle (`DataIngestor`)
 - [ ] `src/atmr/connectors/mt5_client.py` — only file that may import `MetaTrader5` (`MT5Connector`)
