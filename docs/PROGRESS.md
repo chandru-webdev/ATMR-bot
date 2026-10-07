@@ -1,10 +1,10 @@
 # ATMR-Bot — Progress
 
-Last updated: 2026-10-06 by Antigravity
+Last updated: 2026-10-07 by Antigravity
 
 ## Status
 
-`engine/` pure logic and `utils/` logging & redaction are complete (79 tests). Next: `src/atmr/connectors/state.py` (`StateStore`).
+`StateStore` SQLite persistence is complete (91 tests total, 12 in connectors). Next: `src/atmr/connectors/data.py` (`DataIngestor`).
 
 ## Done
 
@@ -19,8 +19,9 @@ Last updated: 2026-10-06 by Antigravity
 - [x] `src/atmr/engine/strategy.py` — closed-candle entries + D1 exit precedence (`tests/engine/test_strategy.py`: **16 passed**)
 - [x] `src/atmr/engine/risk.py` — sizing, daily/weekly circuit breaker, veto, D1 trailing (`tests/engine/test_risk.py`: **15 passed**)
 - [x] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py` — UTC logs, secret redaction (`tests/utils/`: **17 passed**)
+- [x] `src/atmr/connectors/state.py` — SQLite (`StateStore`): trades, daily stats, bot_state & locks, outbox queue, seen commands, audit events (`tests/connectors/test_state.py`: **12 passed**)
 
-Suite total as of this update: **79 passed**.
+Suite total as of this update: **91 passed**.
 
 ## In Progress
 
@@ -28,7 +29,6 @@ None.
 
 ## Not Started
 
-- [ ] `src/atmr/connectors/state.py` — SQLite (`StateStore`)
 - [ ] `src/atmr/connectors/data.py` — OHLCV ingest, drop forming candle (`DataIngestor`)
 - [ ] `src/atmr/connectors/mt5_client.py` — only file that may import `MetaTrader5` (`MT5Connector`)
 - [ ] `src/atmr/connectors/executor.py` — orders, SL, partials, kill sequence (`ExecutionEngine`)
