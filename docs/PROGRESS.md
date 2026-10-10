@@ -4,7 +4,7 @@ Last updated: 2026-10-10 by Antigravity
 
 ## Status
 
-`DataIngestor` OHLCV acquisition and cleaning is complete (100 tests total, 21 in connectors). Next: `src/atmr/connectors/mt5_client.py` (`MT5Connector`).
+`MT5Connector` terminal gateway and order manager is complete (113 tests total, 34 in connectors). Next: `src/atmr/connectors/executor.py` (`ExecutionEngine`).
 
 ## Done
 
@@ -21,8 +21,9 @@ Last updated: 2026-10-10 by Antigravity
 - [x] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py` — UTC logs, secret redaction (`tests/utils/`: **17 passed**)
 - [x] `src/atmr/connectors/state.py` — SQLite (`StateStore`): trades, daily stats, bot_state & locks, outbox queue, seen commands, audit events (`tests/connectors/test_state.py`: **12 passed**)
 - [x] `src/atmr/connectors/data.py` — OHLCV ingest, clean, drop forming candle, detect new closed candles (`tests/connectors/test_data.py`: **9 passed**)
+- [x] `src/atmr/connectors/mt5_client.py` — only file that may import `MetaTrader5` (`MT5Connector`, account/symbol/position models, exponential backoff, retry handling, timeout duplicate protection, live guard) (`tests/connectors/test_mt5_client.py`: **13 passed**)
 
-Suite total as of this update: **100 passed**.
+Suite total as of this update: **113 passed**.
 
 ## In Progress
 
@@ -30,7 +31,6 @@ None.
 
 ## Not Started
 
-- [ ] `src/atmr/connectors/mt5_client.py` — only file that may import `MetaTrader5` (`MT5Connector`)
 - [ ] `src/atmr/connectors/executor.py` — orders, SL, partials, kill sequence (`ExecutionEngine`)
 - [ ] `src/atmr/connectors/notifier.py` — n8n events, outbox, Telegram fallback (`Notifier`)
 - [ ] `src/atmr/connectors/command_poller.py` — poll n8n; allowlist only (`CommandPoller`)

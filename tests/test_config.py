@@ -221,3 +221,19 @@ def test_missing_yaml_file(tmp_path: Path) -> None:
     env_path = _write_env(tmp_path / ".env")
     with pytest.raises(ConfigError, match="not found"):
         load_config(tmp_path / "missing.yaml", env_path)
+
+
+def test_server_utc_offset_hours_valid_and_bounds(tmp_path: Path) -> None:
+    data = _base_yaml()
+    data["mode"]["server_utc_offset_hours"] = 2.0
+    yaml_path = _write_yaml(tmp_path / "config.yaml", data)
+    env_path = _write_env(tmp_path / ".env")
+    cfg = load_config(yaml_path, env_path)
+    assert cfg.mode.server_utc_offset_hours == 2.0
+
+    # Test out of bounds offset (> 14)
+    data["mode"]["server_utc_offset_hours"] = 15.0
+    yaml_path = _write_yaml(tmp_path / "config.yaml", data)
+    with pytest.raises(ConfigError, match="server_utc_offset_hours must be between -14 and 14"):
+        load_config(yaml_path, env_path)
+

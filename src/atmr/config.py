@@ -85,6 +85,7 @@ class ModeConfig:
     primary_timeframe: str
     poll_seconds: int
     command_poll_seconds: int
+    server_utc_offset_hours: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -412,6 +413,7 @@ def _build_config(raw: Mapping[str, Any], secrets: Secrets, trading_mode: str) -
             primary_timeframe=_timeframe(mode_raw.get("primary_timeframe")),
             poll_seconds=_positive_int(mode_raw, "poll_seconds"),
             command_poll_seconds=_positive_int(mode_raw, "command_poll_seconds"),
+            server_utc_offset_hours=_offset_hours(mode_raw, "server_utc_offset_hours"),
         ),
         symbols=_parse_symbols(raw.get("symbols")),
         indicators=_parse_indicators(_mapping(raw, "indicators")),
@@ -678,3 +680,15 @@ def _float_in_range(raw: Mapping[str, Any], key: str, low: float, high: float) -
     if number < low or number > high:
         raise ConfigError(f"{key} must be between {low} and {high}")
     return number
+
+
+def _offset_hours(raw: Mapping[str, Any], key: str = "server_utc_offset_hours") -> float:
+    """Return an optional server UTC offset in hours inside [-14.0, 14.0], default 0.0."""
+    value = raw.get(key, 0.0)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ConfigError(f"{key} must be a number")
+    number = float(value)
+    if number < -14.0 or number > 14.0:
+        raise ConfigError(f"{key} must be between -14 and 14")
+    return number
+

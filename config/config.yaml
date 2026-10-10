@@ -7,6 +7,7 @@ mode:
   primary_timeframe: H1       # D4 locked
   poll_seconds: 30
   command_poll_seconds: 5
+  server_utc_offset_hours: 2  # Broker server timezone offset to UTC in hours (e.g. 2 for EET, 3 for EEST)
 
 symbols:
   # D8: map your broker's real symbol name here once the demo account is chosen.

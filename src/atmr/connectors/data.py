@@ -33,22 +33,34 @@ class RateProvider(Protocol):
 class DataIngestor:
     """The Senses: acquires, cleans, and manages candle data."""
 
-    def __init__(self, client: Any = None) -> None:
+    def __init__(
+        self,
+        client: Any = None,
+        server_utc_offset_hours: float = 0.0,
+    ) -> None:
         """
         Initialize the DataIngestor.
 
         Args:
             client: Optional MT5Connector client providing get_rates().
+            server_utc_offset_hours: Broker server timezone offset in hours to UTC.
         """
         self._client = client
+        self._server_utc_offset_hours = server_utc_offset_hours
         self._last_closed_times: dict[tuple[str, str], datetime] = {}
 
-    def clean_rates(self, raw_rates: Any) -> pd.DataFrame:
+    def clean_rates(
+        self,
+        raw_rates: Any,
+        server_utc_offset_hours: float | None = None,
+    ) -> pd.DataFrame:
         """
         Convert raw MT5 rates to a clean pandas DataFrame with UTC DatetimeIndex.
 
         Args:
             raw_rates: Numpy structured array, list of dicts, or DataFrame.
+            server_utc_offset_hours: Optional broker server offset in hours.
+                If None, defaults to self._server_utc_offset_hours.
 
         Returns:
             pd.DataFrame: Cleaned DataFrame with columns open, high, low, close, volume.
@@ -74,19 +86,34 @@ class DataIngestor:
         elif "volume" not in df.columns:
             df["volume"] = 0.0
 
-        # Convert timestamp to UTC DatetimeIndex
+        # Determine effective broker offset
+        offset = (
+            server_utc_offset_hours
+            if server_utc_offset_hours is not None
+            else self._server_utc_offset_hours
+        )
+        offset_seconds = offset * 3600.0
+
+        # Convert timestamp to UTC DatetimeIndex (subtract broker offset)
         if "time" in df.columns:
             time_col = df["time"]
             if pd.api.types.is_numeric_dtype(time_col):
-                df.index = pd.to_datetime(time_col, unit="s", utc=True)
+                utc_seconds = time_col - offset_seconds
+                df.index = pd.to_datetime(utc_seconds, unit="s", utc=True)
             else:
-                df.index = pd.to_datetime(time_col, utc=True)
+                dt_series = pd.to_datetime(time_col, utc=True)
+                if offset != 0:
+                    dt_series = dt_series - pd.Timedelta(hours=offset)
+                df.index = dt_series
         elif not isinstance(df.index, pd.DatetimeIndex):
             raise ValueError("Rates data must have a 'time' column or DatetimeIndex")
-        elif df.index.tz is None:
-            df.index = df.index.tz_localize("UTC")
         else:
-            df.index = df.index.tz_convert("UTC")
+            if df.index.tz is None:
+                df.index = df.index.tz_localize("UTC")
+            else:
+                df.index = df.index.tz_convert("UTC")
+            if offset != 0:
+                df.index = df.index - pd.Timedelta(hours=offset)
 
         # Select standard columns, drop duplicates, and sort
         standard_cols = ["open", "high", "low", "close", "volume"]
@@ -148,7 +175,14 @@ class DataIngestor:
         if raw is None or len(raw) == 0:
             raise ConnectivityError(f"Failed to fetch rates for {symbol} {timeframe}: empty result")
 
-        cleaned = self.clean_rates(raw)
+        offset = self._server_utc_offset_hours
+        if hasattr(self._client, "get_server_utc_offset"):
+            try:
+                offset = float(self._client.get_server_utc_offset(symbol))
+            except Exception:
+                offset = self._server_utc_offset_hours
+
+        cleaned = self.clean_rates(raw, server_utc_offset_hours=offset)
         if drop_forming:
             cleaned = self.drop_forming_candle(cleaned)
 

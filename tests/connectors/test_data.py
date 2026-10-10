@@ -171,3 +171,35 @@ def test_clean_rates_invalid_input() -> None:
     df_missing = pd.DataFrame([{"time": 1000, "open": 100.0}])
     with pytest.raises(ValueError, match="Missing required OHLC columns"):
         ingestor.clean_rates(df_missing)
+
+
+def test_clean_rates_converts_broker_server_time_to_utc() -> None:
+    """Test that broker server offset is subtracted to produce true UTC timestamps."""
+    ingestor = DataIngestor(server_utc_offset_hours=2.0)
+    # 2026-10-10 15:00:00 in broker time
+    broker_epoch = int(datetime(2026, 10, 10, 15, 0, tzinfo=UTC).timestamp())
+    raw = _make_raw_rates(count=1, start_epoch=broker_epoch)
+
+    # Clean with configured 2-hour offset
+    df = ingestor.clean_rates(raw)
+    first_time = df.index[0]
+
+    # 15:00 broker time - 2h offset = 13:00 true UTC
+    assert first_time.hour == 13
+    assert first_time.tzinfo == UTC
+
+
+def test_fetch_ohlcv_with_dynamic_server_offset() -> None:
+    """Test fetch_ohlcv queries client.get_server_utc_offset when available."""
+    client = MagicMock()
+    client.get_server_utc_offset.return_value = 3.0
+    broker_epoch = int(datetime(2026, 10, 10, 15, 0, tzinfo=UTC).timestamp())
+    client.get_rates.return_value = _make_raw_rates(count=3, start_epoch=broker_epoch)
+
+    ingestor = DataIngestor(client=client, server_utc_offset_hours=0.0)
+    df = ingestor.fetch_ohlcv("XAUUSD", "H1", count=2, drop_forming=True)
+
+    client.get_server_utc_offset.assert_called_once_with("XAUUSD")
+    # 15:00 broker time - 3h offset = 12:00 true UTC
+    assert df.index[0].hour == 12
+
