@@ -214,3 +214,6 @@ class AccountState:
     volume_step: float = 0.01
     volume_min: float = 0.01
     volume_max: float = 100.0
+    account_currency: str = "USD"
+    profit_currency: str = "USD"
+    conversion_rate: float = 1.0

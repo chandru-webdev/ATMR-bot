@@ -59,24 +59,40 @@ class RiskManager:
         volume_step: float,
         volume_min: float,
         volume_max: float,
+        conversion_rate: float = 1.0,
+        fallback_tick_value: float = 1.0,
     ) -> float:
         """
         Return lot size rounded down to ``volume_step``, or 0 to skip.
 
+        MT5's ``symbol_info.trade_tick_value`` is already provided in the ACCOUNT
+        currency. Therefore, when ``tick_value > 0``, it is used as-is.
+        ``conversion_rate`` is applied only as a fallback when ``tick_value <= 0``.
+
         Args:
-            balance: Account balance.
+            balance: Account balance in account currency.
             risk_pct: Percent of balance to risk (0.5 means 0.5%, not 50%).
             sl_distance: Absolute price distance from entry to SL.
-            tick_value: Broker money value of one tick per lot.
+            tick_value: Broker tick value per lot (already in account currency).
             tick_size: Broker tick size in price units.
             volume_step: Lot increment.
             volume_min: Minimum lot. Below this, return 0 (never round up).
             volume_max: Maximum lot clamp.
+            conversion_rate: Fallback multiplier to convert quote currency to account currency.
+            fallback_tick_value: Fallback quote tick value if tick_value is unavailable.
 
         Returns:
             float: Lots to send, or 0.0 if the trade must be skipped.
         """
-        raw = self.raw_position_size(balance, risk_pct, sl_distance, tick_value, tick_size)
+        raw = self.raw_position_size(
+            balance,
+            risk_pct,
+            sl_distance,
+            tick_value,
+            tick_size,
+            conversion_rate=conversion_rate,
+            fallback_tick_value=fallback_tick_value,
+        )
         if raw <= 0:
             return 0.0
         lots = _round_down(raw, volume_step)
@@ -94,24 +110,46 @@ class RiskManager:
         sl_distance: float,
         tick_value: float,
         tick_size: float,
+        conversion_rate: float = 1.0,
+        fallback_tick_value: float = 1.0,
     ) -> float:
         """
-        Unrounded lots: ``(balance * risk_pct/100) / (sl * tick_value/tick_size)``.
+        Unrounded lots sized in account currency.
+
+        Case A (Primary / Live MT5): ``tick_value > 0``.
+            MT5's ``symbol_info.trade_tick_value`` is already calculated in the deposit
+            (account) currency by the terminal. Sizing uses ``tick_value`` as-is.
+
+        Case B (Fallback): ``tick_value <= 0``.
+            If broker tick value is unavailable (e.g. offline testing, unselected symbols),
+            falls back to ``fallback_tick_value * conversion_rate``.
 
         Args:
-            balance: Account balance.
+            balance: Account balance in account currency.
             risk_pct: Percent of balance to risk.
             sl_distance: Absolute SL distance in price.
-            tick_value: Broker tick value per lot.
+            tick_value: Broker tick value per lot in account currency (Case A).
             tick_size: Broker tick size.
+            conversion_rate: Fallback conversion rate to account currency (Case B).
+            fallback_tick_value: Fallback quote tick value if tick_value <= 0 (Case B).
 
         Returns:
             float: Raw lots (may be below ``volume_min``).
         """
-        if balance <= 0 or risk_pct <= 0 or sl_distance <= 0 or tick_value <= 0 or tick_size <= 0:
+        if balance <= 0 or risk_pct <= 0 or sl_distance <= 0 or tick_size <= 0:
             return 0.0
+
+        # Case A: MT5 tick_value is already in account currency
+        if tick_value > 0:
+            effective_tick_value = tick_value
+        # Case B: Fallback using quote tick value * conversion_rate
+        elif fallback_tick_value > 0 and conversion_rate > 0:
+            effective_tick_value = fallback_tick_value * conversion_rate
+        else:
+            return 0.0
+
         risk_money = balance * (risk_pct / 100.0)
-        loss_per_lot = sl_distance * (tick_value / tick_size)
+        loss_per_lot = sl_distance * (effective_tick_value / tick_size)
         if loss_per_lot <= 0:
             return 0.0
         return risk_money / loss_per_lot
@@ -263,6 +301,7 @@ class RiskManager:
             state.volume_step,
             state.volume_min,
             state.volume_max,
+            conversion_rate=state.conversion_rate,
         )
         if lots <= 0:
             return None

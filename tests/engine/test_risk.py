@@ -149,6 +149,88 @@ def test_sizing_xauusd_1_percent() -> None:
     assert final == 0.11
 
 
+def test_sizing_xauusd_gbp_account_uses_mt5_tick_value_as_is() -> None:
+    """
+    Test position sizing for XAUUSD on a GBP account using MT5's tick_value as-is.
+
+    In live/demo MT5, symbol_info.trade_tick_value is already calculated in deposit
+    currency (e.g. ~0.80 GBP for XAUUSD when GBPUSD is ~1.25). It must be used directly
+    without multiplying by conversion_rate.
+    """
+    manager = _manager()
+    balance_gbp = 100_000.0
+    risk_pct = 0.5  # £500 risk
+    sl_distance = 10.0  # $10.00 SL in XAUUSD
+    # Realistic MT5 trade_tick_value already in GBP deposit currency
+    tick_value_gbp = 0.80
+    tick_size = 0.01
+
+    raw = manager.raw_position_size(
+        balance_gbp,
+        risk_pct,
+        sl_distance,
+        tick_value_gbp,
+        tick_size,
+    )
+    final = manager.size_position(
+        balance_gbp,
+        risk_pct,
+        sl_distance,
+        tick_value_gbp,
+        tick_size,
+        0.01,
+        0.01,
+        100.0,
+    )
+
+    # Risk money = £500. Loss per lot = 10.0 * (0.80 / 0.01) = £800.
+    # Raw lots = £500 / £800 = 0.625 -> floored to 0.62.
+    assert raw == pytest.approx(0.625, abs=1e-5)
+    assert final == 0.62
+
+
+def test_sizing_fallback_when_tick_value_unavailable() -> None:
+    """Test fallback conversion_rate applies only when tick_value <= 0."""
+    manager = _manager()
+    balance_gbp = 100_000.0
+    risk_pct = 0.5
+    sl_distance = 10.0
+    tick_size = 0.01
+    # When tick_value is unavailable (0.0), use fallback_tick_value * conversion_rate
+    final = manager.size_position(
+        balance_gbp,
+        risk_pct,
+        sl_distance,
+        tick_value=0.0,
+        tick_size=tick_size,
+        volume_step=0.01,
+        volume_min=0.01,
+        volume_max=100.0,
+        conversion_rate=0.80,  # 1 USD = 0.80 GBP
+        fallback_tick_value=1.0,
+    )
+    assert final == 0.62
+
+
+def test_approve_trade_with_realistic_gbp_account_tick_value() -> None:
+    """Test approve_trade sizes correctly when AccountState has realistic MT5 GBP tick_value."""
+    manager = _manager()
+    cfg = _config()
+    atr = 10.0 / 1.5  # sl_distance = 1.5 * atr = 10.0
+    state = _state(
+        balance=100_000.0,
+        atr=atr,
+        tick_value=0.80,  # MT5 already converted to GBP
+        tick_size=0.01,
+        account_currency="GBP",
+        profit_currency="USD",
+    )
+    decision = manager.approve_trade(_signal(), state, cfg)
+    assert decision.approved is True
+    assert decision.trade_request is not None
+    assert decision.trade_request.lot == 0.62
+
+
 def test_sizing_below_volume_min_returns_zero_never_rounds_up() -> None:
     manager = _manager()
     # Raw lots ~0.0033 with step/min 0.01 → skip, do not round up to 0.01

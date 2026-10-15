@@ -62,6 +62,8 @@ TIMEFRAME_MAP: dict[str, int] = {
     "D1": 16408,
 }
 
+MAX_PROBE_TICK_AGE_S: float = 600.0  # 10 minutes maximum tick age for server offset probe
+
 
 def _load_mt5_module() -> Any:
     """Lazy import of MetaTrader5 with clear error if not installed."""
@@ -159,6 +161,7 @@ class MT5Connector:
         self._mt5 = mt5_module
         self._sleep = sleep_fn if sleep_fn is not None else time.sleep
         self._connected = False
+        self._cached_server_offset: float | None = None
 
     def __enter__(self) -> MT5Connector:
         """Context manager entry."""
@@ -216,7 +219,13 @@ class MT5Connector:
             )
             if self._mt5.initialize(login=login, password=password, server=server):
                 self._connected = True
+                self._cached_server_offset = None
                 self._verify_account_mode()
+                # Re-probe server UTC offset on connect/reconnect so DST changes are picked up
+                try:
+                    self.get_server_utc_offset(force_probe=True)
+                except Exception as probe_err:
+                    logger.debug("Initial server offset probe deferred: %s", probe_err)
                 return
 
             err = self._mt5.last_error()
@@ -235,6 +244,7 @@ class MT5Connector:
             except Exception as exc:
                 logger.warning("Error during MT5 shutdown: %s", exc)
         self._connected = False
+        self._cached_server_offset = None
 
     def _verify_account_mode(self) -> None:
         """Verify account info and enforce live-mode safety guard."""
@@ -356,41 +366,101 @@ class MT5Connector:
             ask=float(getattr(raw, "ask", 0.0)),
         )
 
-    def get_server_utc_offset(self, symbol: str | None = None) -> float:
+    def get_server_utc_offset(
+        self,
+        symbol: str | None = None,
+        force_probe: bool = False,
+    ) -> float:
         """
-        Derive broker server UTC offset in hours, or fall back to config.
+        Derive broker server UTC offset in hours, or fall back to configured offset.
+
+        Probes latest tick from the broker terminal. If the tick looks stale
+        (older than MAX_PROBE_TICK_AGE_S, e.g. market closed), falls back to the
+        configured offset. Logs which source (fresh tick probe vs configured offset)
+        was used. Re-probes on reconnect to ensure Daylight Saving Time (DST)
+        shifts are detected.
 
         Args:
-            symbol: Optional symbol to probe latest tick time.
+            symbol: Optional symbol to probe. If None and offset is cached, returns cached.
+            force_probe: If True, queries MT5 tick even if a cached offset exists.
 
         Returns:
             float: Offset in hours such that utc_time = server_time - (offset * 3600).
         """
-        configured_offset = getattr(self._config.mode, "server_utc_offset_hours", 0.0)
+        configured_offset = float(getattr(self._config.mode, "server_utc_offset_hours", 0.0))
         if not self._connected or self._mt5 is None:
-            return float(configured_offset)
+            return configured_offset
+
+        if not force_probe and symbol is None and self._cached_server_offset is not None:
+            return self._cached_server_offset
 
         probe_symbol = (
             self.resolve_broker_symbol(symbol)
             if symbol
-            else self._config.symbols[0].broker_symbol
-            if self._config.symbols
-            else None
+            else self._config.symbols[0].broker_symbol if self._config.symbols else None
         )
-        if probe_symbol:
-            try:
-                tick = self._mt5.symbol_info_tick(probe_symbol)
-                tick_time = getattr(tick, "time", None)
-                if isinstance(tick_time, (int, float)) and tick_time > 0:
-                    now_utc = datetime.now(UTC).timestamp()
-                    diff_s = float(tick_time) - now_utc
-                    # Derive whole hours if within a plausible 48-hour window
-                    if abs(diff_s) < 172800:
-                        return float(round(diff_s / 3600.0))
-            except Exception:
-                pass
+        if not probe_symbol:
+            logger.info(
+                "No probe symbol available; using configured server_utc_offset_hours=%.1f",
+                configured_offset,
+            )
+            self._cached_server_offset = configured_offset
+            return configured_offset
 
-        return float(configured_offset)
+        try:
+            tick = self._mt5.symbol_info_tick(probe_symbol)
+            tick_time = getattr(tick, "time", None)
+            if isinstance(tick_time, int | float) and tick_time > 0:
+                now_utc = datetime.now(UTC).timestamp()
+                diff_s = float(tick_time) - now_utc
+                derived_offset = float(round(diff_s / 3600.0))
+                tick_age_s = (derived_offset * 3600.0) - diff_s
+
+                # Check bounds (-14 to +14 hours) and staleness (older than 10 mins or clock desync)
+                is_stale = (
+                    tick_age_s > MAX_PROBE_TICK_AGE_S
+                    or tick_age_s < -60.0
+                    or abs(derived_offset) > 14.0
+                    or (configured_offset != 0.0 and abs(derived_offset - configured_offset) > 2.0)
+                )
+
+                if not is_stale:
+                    logger.info(
+                        "Derived broker server UTC offset %+.1fh from fresh tick on %s (age %.1fs)",
+                        derived_offset,
+                        probe_symbol,
+                        tick_age_s,
+                    )
+                    self._cached_server_offset = derived_offset
+                    return derived_offset
+
+                logger.info(
+                    "Probe tick on %s is stale (age %.1fs > %.1fs, derived %+.1fh); "
+                    "falling back to configured server_utc_offset_hours=%.1f",
+                    probe_symbol,
+                    tick_age_s,
+                    MAX_PROBE_TICK_AGE_S,
+                    derived_offset,
+                    configured_offset,
+                )
+                self._cached_server_offset = configured_offset
+                return configured_offset
+            else:
+                logger.info(
+                    "Could not probe numeric tick time on %s; "
+                    "using configured server_utc_offset_hours=%.1f",
+                    probe_symbol,
+                    configured_offset,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Exception during server UTC offset probe on %s: %s; using configured offset=%.1f",
+                probe_symbol,
+                exc,
+                configured_offset,
+            )
+
+        return configured_offset
 
     def get_currency_conversion_rate(
         self,
@@ -422,7 +492,7 @@ class MT5Connector:
         if self._mt5.symbol_select(direct_sym, True):
             tick = self._mt5.symbol_info_tick(direct_sym)
             bid = getattr(tick, "bid", None)
-            if isinstance(bid, (int, float)) and bid > 0:
+            if isinstance(bid, int | float) and bid > 0:
                 return float(bid)
 
         # 2. Try inverse pair, e.g. GBPUSD
@@ -431,7 +501,7 @@ class MT5Connector:
         if self._mt5.symbol_select(inv_sym, True):
             tick = self._mt5.symbol_info_tick(inv_sym)
             ask = getattr(tick, "ask", None)
-            if isinstance(ask, (int, float)) and ask > 0:
+            if isinstance(ask, int | float) and ask > 0:
                 return 1.0 / float(ask)
 
         logger.warning(

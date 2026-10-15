@@ -691,4 +691,3 @@ def _offset_hours(raw: Mapping[str, Any], key: str = "server_utc_offset_hours") 
     if number < -14.0 or number > 14.0:
         raise ConfigError(f"{key} must be between -14 and 14")
     return number
-

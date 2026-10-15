@@ -27,7 +27,7 @@ def broker_time_to_utc(
         datetime: Timezone-aware UTC datetime.
     """
     offset_delta = timedelta(hours=offset_hours)
-    if isinstance(broker_time, (int, float)):
+    if isinstance(broker_time, int | float):
         # Convert numeric broker epoch to UTC datetime
         dt = datetime.fromtimestamp(float(broker_time), tz=UTC)
         return dt - offset_delta
@@ -54,7 +54,7 @@ def utc_to_broker_time(
         datetime: Timezone-aware datetime in broker server time.
     """
     offset_delta = timedelta(hours=offset_hours)
-    if isinstance(utc_time, (int, float)):
+    if isinstance(utc_time, int | float):
         dt = datetime.fromtimestamp(float(utc_time), tz=UTC)
         return dt + offset_delta
 

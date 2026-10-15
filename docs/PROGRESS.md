@@ -1,10 +1,15 @@
 # ATMR-Bot — Progress
 
-Last updated: 2026-10-10 by Antigravity
+Last updated: 2026-10-15 by Antigravity
 
 ## Status
 
-`MT5Connector` terminal gateway and order manager is complete (113 tests total, 34 in connectors). Next: `src/atmr/connectors/executor.py` (`ExecutionEngine`).
+Pre-executor fixes complete:
+1. Currency & Sizing: MT5 `trade_tick_value` is used as-is in deposit currency without double conversion; `conversion_rate` retained solely as a fallback when `tick_value <= 0`. Regression test on GBP account with XAUUSD tick_value ~ 0.80 added.
+2. State: auto-clear UPDATE in `get_bot_state()` explicitly committed (`self._conn.commit()`); persistence test updated to close/reopen SQLite file and confirm lock expiration on disk.
+3. MT5 Client Server Offset Probe: ignores stale ticks (>10 min), falls back to configured offset, logs source used, and re-probes on reconnect for DST shifts. Tests added for stale-tick fallback and DST transition.
+
+All 131 tests pass. Next: `src/atmr/connectors/executor.py` (`ExecutionEngine`).
 
 ## Done
 
@@ -13,17 +18,17 @@ Last updated: 2026-10-10 by Antigravity
 - [x] `.env.example`, `pyproject.toml` (src layout), `requirements.txt`
 - [x] `src/atmr/check_connection.py` — MT5 demo connection verified on MetaQuotes-Demo
 - [x] `src/atmr/exceptions.py` — `ConfigError`, `LiveModeGuardError`, trading errors
-- [x] `src/atmr/config.py` — loads `.env` + YAML, hard caps, live-mode guard (`tests/test_config.py`: **13 passed**)
+- [x] `src/atmr/config.py` — loads `.env` + YAML, hard caps, live-mode guard, `server_utc_offset_hours` (`tests/test_config.py`: **14 passed**)
 - [x] `src/atmr/engine/models.py` — frozen `Signal`, `TradeRequest`, `Position`, `RiskDecision`, `ExitDecision`, `AccountState`, `LimitDecision` (`tests/test_models.py`: **8 passed**)
 - [x] `src/atmr/engine/indicators.py` — MT5-style EMA / Wilder RSI / BB / ATR (`tests/engine/test_indicators.py`: **10 passed**)
 - [x] `src/atmr/engine/strategy.py` — closed-candle entries + D1 exit precedence (`tests/engine/test_strategy.py`: **16 passed**)
-- [x] `src/atmr/engine/risk.py` — sizing, daily/weekly circuit breaker, veto, D1 trailing (`tests/engine/test_risk.py`: **15 passed**)
-- [x] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py` — UTC logs, secret redaction (`tests/utils/`: **17 passed**)
-- [x] `src/atmr/connectors/state.py` — SQLite (`StateStore`): trades, daily stats, bot_state & locks, outbox queue, seen commands, audit events (`tests/connectors/test_state.py`: **12 passed**)
-- [x] `src/atmr/connectors/data.py` — OHLCV ingest, clean, drop forming candle, detect new closed candles (`tests/connectors/test_data.py`: **9 passed**)
-- [x] `src/atmr/connectors/mt5_client.py` — only file that may import `MetaTrader5` (`MT5Connector`, account/symbol/position models, exponential backoff, retry handling, timeout duplicate protection, live guard) (`tests/connectors/test_mt5_client.py`: **13 passed**)
+- [x] `src/atmr/engine/risk.py` — sizing with MT5 deposit-currency `tick_value` as-is, fallback `conversion_rate`, circuit breaker, veto, D1 trailing (`tests/engine/test_risk.py`: **18 passed**)
+- [x] `src/atmr/utils/logging_setup.py`, `src/atmr/utils/redact.py`, `src/atmr/utils/time_utils.py` — UTC logs, secret redaction, UTC broker conversion & reset schedules (`tests/utils/`: **23 passed**)
+- [x] `src/atmr/connectors/state.py` — SQLite (`StateStore`): trades, daily stats, bot_state & locks (auto-clear on UTC reset with commit), outbox queue, seen commands, audit events (`tests/connectors/test_state.py`: **13 passed**)
+- [x] `src/atmr/connectors/data.py` — OHLCV ingest, clean, broker server offset to UTC, drop forming candle, detect new closed candles (`tests/connectors/test_data.py`: **11 passed**)
+- [x] `src/atmr/connectors/mt5_client.py` — only file that may import `MetaTrader5` (`MT5Connector`, account/symbol/position models, exponential backoff, retry handling, timeout duplicate protection, stale-tick server offset probe & DST re-probe, currency conversion fallback, live guard) (`tests/connectors/test_mt5_client.py`: **18 passed**)
 
-Suite total as of this update: **113 passed**.
+Suite total as of this update: **131 passed**.
 
 ## In Progress
 

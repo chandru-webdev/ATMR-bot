@@ -161,9 +161,9 @@ def test_bot_state_pause_resume(store: StateStore) -> None:
 def test_bot_state_locks(store: StateStore) -> None:
     """Test setting and clearing daily and weekly locks."""
     until = _TS + timedelta(days=1)
-    store.set_lock(lock_type="DAILY", locked_until=until)
+    store.set_lock(lock_type="DAILY", locked_until=until, now=_TS)
 
-    state = store.get_bot_state()
+    state = store.get_bot_state(now=_TS)
     assert state.lock_type == "DAILY"
     assert state.locked_until == until
 
@@ -171,6 +171,35 @@ def test_bot_state_locks(store: StateStore) -> None:
     state2 = store.get_bot_state()
     assert state2.lock_type is None
     assert state2.locked_until is None
+
+
+def test_bot_state_locks_auto_clear_on_expiry(tmp_path: Path) -> None:
+    """Test that a DAILY lock automatically clears and persists when closing and reopening DB."""
+    db_file = tmp_path / "locks.db"
+    store = StateStore(db_file)
+    lock_expire = _TS + timedelta(hours=12)
+    store.set_lock(lock_type="DAILY", locked_until=lock_expire, now=_TS)
+
+    # Before expiry, lock is active
+    before_expire = _TS + timedelta(hours=6)
+    state = store.get_bot_state(now=before_expire)
+    assert state.lock_type == "DAILY"
+
+    # After expiry (UTC reset), lock is auto-cleared in SQLite
+    after_expire = _TS + timedelta(hours=13)
+    state_expired = store.get_bot_state(now=after_expire)
+    assert state_expired.lock_type is None
+    assert state_expired.locked_until is None
+
+    # Close and reopen the SQLite file to confirm the lock cleared change is committed
+    store.close()
+    reopened = StateStore(db_file)
+    try:
+        persisted = reopened.get_bot_state(now=after_expire)
+        assert persisted.lock_type is None
+        assert persisted.locked_until is None
+    finally:
+        reopened.close()
 
 
 def test_kill_switch_persistence_and_acknowledgement(store: StateStore) -> None:

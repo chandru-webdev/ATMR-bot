@@ -236,4 +236,3 @@ def test_server_utc_offset_hours_valid_and_bounds(tmp_path: Path) -> None:
     yaml_path = _write_yaml(tmp_path / "config.yaml", data)
     with pytest.raises(ConfigError, match="server_utc_offset_hours must be between -14 and 14"):
         load_config(yaml_path, env_path)
-

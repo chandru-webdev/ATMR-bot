@@ -271,20 +271,42 @@ class StateStore:
     # Bot State & Locks
     # -------------------------------------------------------------------------
 
-    def get_bot_state(self) -> BotStateRecord:
-        """Retrieve the singleton bot state record."""
+    def get_bot_state(self, now: datetime | None = None) -> BotStateRecord:
+        """
+        Retrieve the singleton bot state record.
+
+        Automatically clears expired DAILY and WEEKLY locks when locked_until is reached.
+        """
+        now_dt = now or datetime.now(UTC)
         with self._lock:
             row = self._conn.execute(
                 "SELECT paused, lock_type, locked_until, updated_at FROM bot_state WHERE id = 1;"
             ).fetchone()
 
-        locked_until = _parse_iso_utc(row["locked_until"]) if row["locked_until"] else None
-        return BotStateRecord(
-            paused=bool(row["paused"]),
-            lock_type=row["lock_type"],
-            locked_until=locked_until,
-            updated_at=_parse_iso_utc(row["updated_at"]),
-        )
+            locked_until = _parse_iso_utc(row["locked_until"]) if row["locked_until"] else None
+            lock_type = row["lock_type"]
+
+            # Auto-clear expired daily or weekly lock at the UTC reset time
+            if (
+                locked_until is not None
+                and now_dt >= locked_until
+                and lock_type in ("DAILY", "WEEKLY")
+            ):
+                self._conn.execute(
+                    "UPDATE bot_state SET lock_type = NULL, locked_until = NULL, "
+                    "updated_at = ? WHERE id = 1;",
+                    (_iso_utc(now_dt),),
+                )
+                self._conn.commit()
+                lock_type = None
+                locked_until = None
+
+            return BotStateRecord(
+                paused=bool(row["paused"]),
+                lock_type=lock_type,
+                locked_until=locked_until,
+                updated_at=_parse_iso_utc(row["updated_at"]),
+            )
 
     def set_paused(self, paused: bool, now: datetime | None = None) -> None:
         """Set or clear the paused flag."""

@@ -54,7 +54,12 @@ from atmr.exceptions import (
 )
 
 
-def _make_config(*, trading_mode: str = "demo", password: str = "super_secret_pw") -> Config:
+def _make_config(
+    *,
+    trading_mode: str = "demo",
+    password: str = "super_secret_pw",
+    server_utc_offset_hours: float = 0.0,
+) -> Config:
     """Build a test Config instance."""
     return Config(
         secrets=Secrets(
@@ -68,7 +73,13 @@ def _make_config(*, trading_mode: str = "demo", password: str = "super_secret_pw
             confirm_live="YES_I_UNDERSTAND" if trading_mode == "live" else "",
             live_server="Demo-Server" if trading_mode == "live" else "",
         ),
-        mode=ModeConfig(trading_mode, "H1", 30, 5),
+        mode=ModeConfig(
+            trading_mode,
+            "H1",
+            30,
+            5,
+            server_utc_offset_hours=server_utc_offset_hours,
+        ),
         symbols=(SymbolConfig("XAUUSD", "XAUUSD", 50), SymbolConfig("EURUSD", "EURUSD.m", 20)),
         indicators=IndicatorConfig(200, 14, 20, 2.0, 14),
         strategy=StrategyConfig(35, 70, 1),
@@ -489,3 +500,56 @@ def test_get_positions_normalizes_open_time_to_utc() -> None:
     assert positions[0].time.hour == 13
     assert positions[0].time.tzinfo == UTC
 
+
+def test_get_server_utc_offset_stale_tick_falls_back_to_config(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that stale probe ticks (>10 min) are ignored and fall back to configured offset."""
+    config = _make_config(server_utc_offset_hours=2.0)
+    mock_mt5 = MagicMock()
+    connector = MT5Connector(config, mt5_module=mock_mt5)
+    connector.connect()
+
+    now_utc_ts = datetime.now(UTC).timestamp()
+    # Mock a tick that is 15 minutes old (market closed / stale)
+    stale_tick = MagicMock(time=now_utc_ts + 7200 - 900)
+    mock_mt5.symbol_info_tick.return_value = stale_tick
+
+    with caplog.at_level(logging.INFO):
+        offset = connector.get_server_utc_offset("XAUUSD", force_probe=True)
+
+    assert offset == 2.0
+    assert "stale" in caplog.text
+    assert "falling back to configured server_utc_offset_hours=2.0" in caplog.text
+
+
+def test_get_server_utc_offset_reconnect_dst_transition(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that offset probe detects DST changes across reconnects."""
+    config = _make_config(server_utc_offset_hours=2.0)
+    mock_mt5 = MagicMock()
+    connector = MT5Connector(config, mt5_module=mock_mt5)
+
+    # Initial connect in winter (UTC+2)
+    now_utc_ts = datetime.now(UTC).timestamp()
+    mock_mt5.symbol_info_tick.return_value = MagicMock(time=now_utc_ts + 7200 - 2)
+    connector.connect()
+
+    with caplog.at_level(logging.INFO):
+        offset_winter = connector.get_server_utc_offset("XAUUSD")
+
+    assert offset_winter == 2.0
+    assert "Derived broker server UTC offset +2.0h from fresh tick" in caplog.text
+
+    # Reconnect during summer DST (UTC+3)
+    caplog.clear()
+    mock_mt5.symbol_info_tick.return_value = MagicMock(time=now_utc_ts + 10800 - 2)
+    connector.disconnect()
+    connector.connect()
+
+    with caplog.at_level(logging.INFO):
+        offset_summer = connector.get_server_utc_offset("XAUUSD")
+
+    assert offset_summer == 3.0
+    assert "Derived broker server UTC offset +3.0h from fresh tick" in caplog.text

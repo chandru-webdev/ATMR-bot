@@ -202,4 +202,3 @@ def test_fetch_ohlcv_with_dynamic_server_offset() -> None:
     client.get_server_utc_offset.assert_called_once_with("XAUUSD")
     # 15:00 broker time - 3h offset = 12:00 true UTC
     assert df.index[0].hour == 12
-
