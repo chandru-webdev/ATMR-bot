@@ -150,3 +150,4 @@ A panic mode accessible via Telegram.
 ## 11. Changelog
 - **v2.0.0:** Merged your policy with the current design. Kept: `.env` rule and variable list, Git hygiene (`*.db` added), error sanitization, input validation, `X-BOT-API-KEY`, `/kill_all` kill switch, daily summary, weekly log rotation. Changed: SSH port 22 became RDP 3389 (Windows), FastAPI port 8000 rule replaced by outbound-only design, API key direction now bot -> n8n, `/kill_all` given a 60-second YES confirmation, 2-minute expiry and no-auto-restart. Added: live-mode guard, command allowlist, TTL/idempotency, 2FA, dependency rules, incident response, pre-live checklist.
 - **v1.0.0:** Original security policy.
+
